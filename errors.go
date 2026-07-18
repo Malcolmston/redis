@@ -23,4 +23,12 @@ var (
 	ErrUnknownCommand = errors.New("ERR unknown command")
 	// ErrOutOfRange is returned when an index argument is out of range.
 	ErrOutOfRange = errors.New("ERR index out of range")
+	// ErrIncrOverflow is returned when an integer increment or decrement would
+	// carry the result outside the signed 64-bit range. It mirrors the Redis
+	// "increment or decrement would overflow" reply.
+	ErrIncrOverflow = errors.New("ERR increment or decrement would overflow")
+	// ErrIncrNaNOrInf is returned when a floating-point increment would produce
+	// a NaN or infinite result. It mirrors the Redis "increment would produce
+	// NaN or Infinity" reply.
+	ErrIncrNaNOrInf = errors.New("ERR increment would produce NaN or Infinity")
 )

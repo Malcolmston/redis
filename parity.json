@@ -1,0 +1,10 @@
+{
+  "repo": "redis",
+  "upstream": "redis/redis",
+  "parityBefore": "93%",
+  "parityAfter": "100%",
+  "upstreamCasesSynced": 110,
+  "gapsFound": 5,
+  "gapsClosed": 5,
+  "asOf": "2026-07-18"
+}

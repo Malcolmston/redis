@@ -221,7 +221,15 @@ func incrHelper(s *Store, a []string, sign int64, withArg bool) (any, error) {
 		if err != nil {
 			return nil, ErrNotInteger
 		}
-		n, err := s.IncrBy(a[0], sign*delta)
+		// Route through DecrBy for the negative sign so that a delta of
+		// math.MinInt64 (whose negation is not representable) is rejected
+		// exactly as Redis DECRBY rejects it.
+		var n int64
+		if sign < 0 {
+			n, err = s.DecrBy(a[0], delta)
+		} else {
+			n, err = s.IncrBy(a[0], delta)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -765,4 +773,16 @@ func parseScoreBound(s string) (val float64, exclusive bool, err error) {
 
 func formatFloat(f float64) string {
 	return strconv.FormatFloat(f, 'g', -1, 64)
+}
+
+// formatFloatHuman renders f the way Redis formats INCRBYFLOAT and HINCRBYFLOAT
+// replies: fixed-point notation with the shortest round-trip precision, no
+// exponent, and no signed zero. This keeps large whole numbers such as
+// 34359738368 readable instead of falling back to scientific notation.
+func formatFloatHuman(f float64) string {
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	if s == "-0" {
+		return "0"
+	}
+	return s
 }

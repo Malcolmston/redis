@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -341,9 +342,11 @@ func (s *Store) HIncrBy(key, field string, delta int64) (int64, error) {
 }
 
 // HIncrByFloat increments the floating-point value of field in the hash at key
-// by delta and returns the result. A missing key or field is treated as 0. It
-// returns ErrNotFloat if the field holds a non-float and ErrWrongType if the
-// key holds a non-hash value.
+// by delta and returns the result. A missing key or field is treated as 0. The
+// stored value is rewritten in Redis' human-readable float format (fixed-point,
+// shortest round-trip). It returns ErrNotFloat if the field holds a non-float,
+// ErrWrongType if the key holds a non-hash value, and ErrIncrNaNOrInf if the
+// sum is NaN or infinite, in which case the field is left unchanged.
 func (s *Store) HIncrByFloat(key, field string, delta float64) (float64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -360,7 +363,10 @@ func (s *Store) HIncrByFloat(key, field string, delta float64) (float64, error) 
 		cur = f
 	}
 	cur += delta
-	it.hash[field] = formatFloat(cur)
+	if math.IsNaN(cur) || math.IsInf(cur, 0) {
+		return 0, ErrIncrNaNOrInf
+	}
+	it.hash[field] = formatFloatHuman(cur)
 	return cur, nil
 }
 

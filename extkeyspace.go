@@ -2,6 +2,7 @@ package redis
 
 import (
 	"errors"
+	"math"
 	"math/rand"
 	"strconv"
 	"time"
@@ -232,9 +233,11 @@ func (s *Store) MGet(keys ...string) []*string {
 }
 
 // IncrByFloat increments the floating-point value at key by delta and returns
-// the result, treating a missing key as 0. The stored value is rewritten using
-// the store's canonical float formatting. A non-string key yields ErrWrongType,
-// and a value that does not parse as a float yields ErrNotFloat.
+// the result, treating a missing key as 0. The stored value is rewritten in
+// Redis' human-readable float format (fixed-point, shortest round-trip). A
+// non-string key yields ErrWrongType, a value that does not parse as a float
+// yields ErrNotFloat, and a sum that is NaN or infinite yields ErrIncrNaNOrInf
+// with the stored value left unchanged.
 func (s *Store) IncrByFloat(key string, delta float64) (float64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -251,7 +254,10 @@ func (s *Store) IncrByFloat(key string, delta float64) (float64, error) {
 		cur = f
 	}
 	cur += delta
-	formatted := formatFloat(cur)
+	if math.IsNaN(cur) || math.IsInf(cur, 0) {
+		return 0, ErrIncrNaNOrInf
+	}
+	formatted := formatFloatHuman(cur)
 	if it != nil {
 		it.str = formatted
 	} else {

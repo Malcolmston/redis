@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"math"
 	"strconv"
 	"time"
 )
@@ -113,7 +114,8 @@ func (s *Store) Strlen(key string) (int, error) {
 
 // IncrBy increments the integer value at key by delta and returns the result.
 // A missing key is treated as 0. It returns ErrNotInteger if the value is not a
-// base-10 integer.
+// base-10 integer, and ErrIncrOverflow if the sum would fall outside the signed
+// 64-bit range, in which case the stored value is left unchanged.
 func (s *Store) IncrBy(key string, delta int64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,6 +131,9 @@ func (s *Store) IncrBy(key string, delta int64) (int64, error) {
 		}
 		cur = n
 	}
+	if addOverflowsInt64(cur, delta) {
+		return 0, ErrIncrOverflow
+	}
 	cur += delta
 	if it != nil {
 		it.str = strconv.FormatInt(cur, 10)
@@ -138,11 +143,29 @@ func (s *Store) IncrBy(key string, delta int64) (int64, error) {
 	return cur, nil
 }
 
+// addOverflowsInt64 reports whether a+b would overflow the signed 64-bit range.
+func addOverflowsInt64(a, b int64) bool {
+	if b > 0 && a > math.MaxInt64-b {
+		return true
+	}
+	if b < 0 && a < math.MinInt64-b {
+		return true
+	}
+	return false
+}
+
 // Incr increments the integer value at key by one.
 func (s *Store) Incr(key string) (int64, error) { return s.IncrBy(key, 1) }
 
 // Decr decrements the integer value at key by one.
 func (s *Store) Decr(key string) (int64, error) { return s.IncrBy(key, -1) }
 
-// DecrBy decrements the integer value at key by delta.
-func (s *Store) DecrBy(key string, delta int64) (int64, error) { return s.IncrBy(key, -delta) }
+// DecrBy decrements the integer value at key by delta. Passing math.MinInt64
+// yields ErrIncrOverflow because its negation is not representable, matching
+// Redis DECRBY.
+func (s *Store) DecrBy(key string, delta int64) (int64, error) {
+	if delta == math.MinInt64 {
+		return 0, ErrIncrOverflow
+	}
+	return s.IncrBy(key, -delta)
+}
