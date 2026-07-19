@@ -15,6 +15,7 @@ type Clock interface {
 // realClock is the default Clock backed by time.Now.
 type realClock struct{}
 
+// Now returns the current wall-clock time by delegating to time.Now.
 func (realClock) Now() time.Time { return time.Now() }
 
 // ManualClock is a Clock whose time is advanced explicitly. It is safe for
